@@ -437,6 +437,8 @@ function handleRun(){
   console.log('查詢代號 =', codeKey);
   console.log('上游筆數 =', upstreamEdges.length, upstreamEdges);
   console.log('下游筆數 =', downstreamEdges.length, downstreamEdges);
+  
+  renderConceptNote(rowSelf, downstreamEdges);
 
 requestAnimationFrame(() => {
     try {
@@ -476,6 +478,59 @@ function renderResultChip(selfRow, month, metric, colorMode){
       <div class="row2"><span>${safe(selfRow['產業別'] || '')}</span><span>${displayPct(v)}</span></div>
     </div>`;
 }
+
+function renderConceptNote(selfRow, downstreamEdges){
+  const host = document.querySelector('#conceptNote');
+
+  if (!host) {
+    console.warn('[renderConceptNote] 找不到 #conceptNote');
+    return;
+  }
+
+  const showCode =
+    selfRow['個股'] ||
+    selfRow['代號'] ||
+    selfRow['股票代碼'] ||
+    selfRow['股票代號'] ||
+    selfRow['公司代號'] ||
+    selfRow['證券代號'] ||
+    '';
+
+  const showName =
+    selfRow['名稱'] ||
+    selfRow['公司名稱'] ||
+    selfRow['證券名稱'] ||
+    '';
+
+  const concepts = [...new Set(
+    (downstreamEdges || [])
+      .map(e => normText(e['關係類型'] || e['type'] || ''))
+      .filter(Boolean)
+  )];
+
+  if (!concepts.length) {
+    host.innerHTML = `
+      <div class="concept-note-inner">
+        <span class="concept-note-title">概念股補充</span>
+        <span class="concept-note-text">
+          目前查無 ${safe(showCode)} ${safe(showName)} 的概念股分類資料。
+        </span>
+      </div>
+    `;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="concept-note-inner">
+      <span class="concept-note-title">概念股補充</span>
+      <span class="concept-note-text">
+        因概念股清單較多，熱力圖僅呈現部分代表分類與個股。
+        此個股為 ${concepts.map(c => safe(c)).join('、')} 概念股。
+      </span>
+    </div>
+  `;
+}
+
 
 // ========= 個股標籤適配 =========
 const LabelFit = {
