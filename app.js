@@ -558,7 +558,7 @@ function renderConceptNote(selfRow, downstreamEdges){
       <span class="concept-note-title">概念股補充</span>
       <span class="concept-note-text">
         因概念股清單較多，熱力圖僅呈現部分代表分類與個股。
-        此個股為 <strong class="concept-list">${concepts.map(c => safe(c)).join('、')}<strong/> 概念股。
+        此個股為 <strong class="concept-list">${concepts.map(c => safe(c)).join('、')}</strong> 概念股。
       </span>
     </div>
   `;
@@ -1020,23 +1020,45 @@ function renderTreemap(svgId, hintId, edges, codeField, month, metric, colorMode
     return;
   }
 
-  let groupWeights = new Map();
+let groupWeights = new Map();
 
-  if (GROUP_WEIGHT_MODE === 'AVG') {
-    const minAvg = d3.min(groupSummaries.map(d => Number.isFinite(d.avg) ? d.avg : 0));
-    for (const g of groupSummaries) {
-      const a = Number.isFinite(g.avg) ? g.avg : minAvg;
-      groupWeights.set(g.rel, Math.max(EPS, (a - minAvg + EPS)));
-    }
-  } else {
-    const sorted = [...groupSummaries].sort((a, b) => (Number.isFinite(a.avg) ? a.avg : -Infinity) - (Number.isFinite(b.avg) ? b.avg : -Infinity));
-    const n = Math.max(1, sorted.length - 1);
-    sorted.forEach((g, i) => {
-      const t = i / n;
-      const w = RANK_WEIGHT_MIN + t * (RANK_WEIGHT_MAX - RANK_WEIGHT_MIN);
-      groupWeights.set(g.rel, w);
-    });
+/*
+  群組面積權重：
+  - 上游 / 相同產業股：維持原本 RANK 排名邏輯，避免單一類股過度放大
+  - 下游 / 概念股：改用平均營收表現決定面積，讓平均表現高的概念股群組更明顯
+*/
+if (svgId === 'downTreemap') {
+  for (const g of groupSummaries) {
+    const avg = Number.isFinite(g.avg) ? g.avg : 0;
+
+    // 加 10 是避免低平均或小負值群組被壓到太小
+    // Math.max(0, avg) 代表負值概念股不會因為絕對值大而被放大
+    const score = Math.max(0, avg) + 10;
+
+    groupWeights.set(g.rel, Math.max(EPS, score));
   }
+} else if (GROUP_WEIGHT_MODE === 'AVG') {
+  const minAvg = d3.min(groupSummaries.map(d => Number.isFinite(d.avg) ? d.avg : 0));
+
+  for (const g of groupSummaries) {
+    const a = Number.isFinite(g.avg) ? g.avg : minAvg;
+    groupWeights.set(g.rel, Math.max(EPS, (a - minAvg + EPS)));
+  }
+} else {
+  const sorted = [...groupSummaries].sort((a, b) => {
+    const av = Number.isFinite(a.avg) ? a.avg : -Infinity;
+    const bv = Number.isFinite(b.avg) ? b.avg : -Infinity;
+    return av - bv;
+  });
+
+  const n = Math.max(1, sorted.length - 1);
+
+  sorted.forEach((g, i) => {
+    const t = i / n;
+    const w = RANK_WEIGHT_MIN + t * (RANK_WEIGHT_MAX - RANK_WEIGHT_MIN);
+    groupWeights.set(g.rel, w);
+  });
+}
 
   let children = [];
   for (const g of groupSummaries) {
