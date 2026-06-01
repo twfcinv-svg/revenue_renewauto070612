@@ -341,6 +341,12 @@ function getMetricValue(row, month, metric){
   return Number.isFinite(v) ? v : null;
 }
 
+function isZeroMetricValue(v){
+  return Number.isFinite(v) && Math.abs(v) < 1e-9;
+}
+
+
+
 // ===== 新增：決定 Treemap 分群名稱 =====
 // 上游：改用 Revenue 的「產業別」分群
 // 下游：維持原本用 Links / DownLinks 的「關係類型」分群
@@ -979,36 +985,56 @@ function renderTreemap(svgId, hintId, edges, codeField, month, metric, colorMode
 
   const groups = new Map();
 
-  for (const e of (edges || [])) {
-    const keyRaw = normCode(e[codeField] || e['down'] || e['up']);
-    if (isUSCode(keyRaw)) continue;
+for (const e of (edges || [])) {
+  const keyRaw = normCode(e[codeField] || e['down'] || e['up']);
+  if (isUSCode(keyRaw)) continue;
 
-    const r = byCode.get(keyRaw);
-    const groupName = getTreemapGroupName(svgId, e, r);
+  const r = byCode.get(keyRaw);
+  const groupName = getTreemapGroupName(svgId, e, r);
 
+  if (!r) {
     if (!groups.has(groupName)) groups.set(groupName, []);
 
-    if (!r) {
-      groups.get(groupName).push({
-        code: keyRaw,
-        name: '',
-        raw: null,
-        rel: groupName
-      });
-      continue;
-    }
-
-    const v = getMetricValue(r, month, metric);
-    const codeVal = r['個股'] ?? r['代號'] ?? r['股票代碼'] ?? r['股票代號'] ?? r['公司代號'] ?? r['證券代號'];
-    const nameVal = r['名稱'] ?? r['公司名稱'] ?? r['證券名稱'];
-
     groups.get(groupName).push({
-      code: codeVal,
-      name: nameVal,
-      raw: v,
+      code: keyRaw,
+      name: '',
+      raw: null,
       rel: groupName
     });
+
+    continue;
   }
+
+  const v = getMetricValue(r, month, metric);
+
+  // 新增條件：
+  // 如果該個股當月 YoY / MoM 數值為 0，直接省略，不放進熱力圖
+  if (isZeroMetricValue(v)) {
+    continue;
+  }
+
+  if (!groups.has(groupName)) groups.set(groupName, []);
+
+  const codeVal =
+    r['個股'] ??
+    r['代號'] ??
+    r['股票代碼'] ??
+    r['股票代號'] ??
+    r['公司代號'] ??
+    r['證券代號'];
+
+  const nameVal =
+    r['名稱'] ??
+    r['公司名稱'] ??
+    r['證券名稱'];
+
+  groups.get(groupName).push({
+    code: codeVal,
+    name: nameVal,
+    raw: v,
+    rel: groupName
+  });
+}
 
   if (groups.size === 0) {
     if (hint) hint.textContent = '查無關聯個股';
