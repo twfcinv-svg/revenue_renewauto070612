@@ -1,4 +1,4 @@
-/* app.js — v3.16 (Upstream Industry Avg Ranking)
+he/* app.js — v3.16 (Upstream Industry Avg Ranking)
  * 修正內容：
  *  A) 右側「下游產業」正確讀取 DownLinks sheet
  *  B) renderTreemap 支援 Links / DownLinks 兩種資料格式
@@ -25,7 +25,7 @@ const COL_MAP = {};
 // ===== 可調參數 =====
 const HEADER_H = 22;
 const GROUP_KEEP_MAX = 7;
-const DOWN_GROUP_STOCK_KEEP_MAX = 12;
+const DOWN_GROUP_STOCK_KEEP_MAX = 18;
 const GROUP_WEIGHT_MODE = 'RANK';
 const RANK_WEIGHT_MIN = 1.3;
 const RANK_WEIGHT_MAX = 1.8;
@@ -413,6 +413,26 @@ function treemapSortByPerformance(a, b){
     { numeric: true }
   );
 }
+
+
+function getTreemapLeafBase(raw, svgId){
+  const minBase = (svgId === 'upTreemap') ? 1.2 : 0.9;
+
+  if (!Number.isFinite(raw)) return minBase;
+
+  const absVal = Math.abs(raw);
+
+  // 右邊概念股：避免單一超高成長率個股吃掉太多面積
+  if (svgId === 'downTreemap') {
+    const capped = Math.min(absVal, 180);
+    return Math.max(minBase, Math.pow(capped + 1, 0.42));
+  }
+
+  // 左邊相同產業股維持原本接近 sqrt 的邏輯
+  return Math.max(minBase, Math.sqrt(absVal + 1));
+}
+
+
 
 
 function handleRun(){
@@ -995,14 +1015,13 @@ function renderTreemap(svgId, hintId, edges, codeField, month, metric, colorMode
 
     const avg = validVals.length ? d3.mean(validVals) : 0;
 
-    const baseValues = list.map(s => {
-      const rawVal = Number.isFinite(s.raw) ? Math.abs(s.raw) : 0;
-      const minBase = (svgId === 'upTreemap') ? 1.2 : 0.8;
-      const base = Math.max(minBase, Math.sqrt(rawVal + 1));
-      return { s, base };
-    });
+const baseValues = list.map(s => {
+  const base = getTreemapLeafBase(s.raw, svgId);
+  return { s, base };
+});
 
-    const baseSum = d3.sum(baseValues, d => d.base) || EPS;
+const baseSum = d3.sum(baseValues, d => d.base) || EPS;
+
 
     allSummaries.push({
       rel,
@@ -1060,65 +1079,101 @@ if (svgId === 'downTreemap') {
   });
 }
 
-  let children = [];
-  for (const g of groupSummaries) {
-    const gw = groupWeights.get(g.rel) || 1;
-    const scale = gw / (g.baseSum || EPS);
+let children = [];
 
-let baseValuesForRender = g.baseValues;
+for (const g of groupSummaries) {
+  const gw = groupWeights.get(g.rel) || 1;
 
-// 右邊概念股：每個群組只保留表現較佳的前幾檔，避免方塊太小全部被濾掉
-if (svgId === 'downTreemap') {
-  baseValuesForRender = [...g.baseValues]
-    .sort((a, b) => {
-      const av = Number.isFinite(a.s.raw) ? a.s.raw : -Infinity;
-      const bv = Number.isFinite(b.s.raw) ? b.s.raw : -Infinity;
-      return bv - av;
-    })
-    .slice(0, DOWN_GROUP_STOCK_KEEP_MAX);
-}
+  let baseValuesForRender = g.baseValues;
 
-const kids = baseValuesForRender.map(({s, base}) => ({
-  name: s.name || '',
-  code: s.code,
-  raw: s.raw,
-  rel: s.rel || g.rel,
-  value: base * scale
-}));
+  // 右邊概念股：保留表現較佳的前幾檔
+  // 但後面一定要用「實際渲染清單」重新計算分母，避免群組被全部名單稀釋
+  if (svgId === 'downTreemap') {
+    baseValuesForRender = [...g.baseValues]
+      .sort((a, b) => {
+        const av = Number.isFinite(a.s.raw) ? a.s.raw : -Infinity;
+        const bv = Number.isFinite(b.s.raw) ? b.s.raw : -Infinity;
 
-    children.push({
-      name: g.rel,
-      avg: g.avg,
-      children: kids
-    });
+        if (bv !== av) return bv - av;
+
+        return String(a.s.code || '').localeCompare(
+          String(b.s.code || ''),
+          'zh-Hant',
+          { numeric: true }
+        );
+      })
+      .slice(0, DOWN_GROUP_STOCK_KEEP_MAX);
   }
+
+  // 重要修正：
+  // 只用實際要畫出的個股計算 baseSum
+  // 不再用 g.baseSum，避免輝達這種名單很多的概念股被稀釋
+  const renderBaseSum = d3.sum(baseValuesForRender, d => d.base) || EPS;
+  const scale = gw / renderBaseSum;
+
+  const kids = baseValuesForRender.map(({s, base}) => ({
+    name: s.name || '',
+    code: s.code,
+    raw: s.raw,
+    rel: s.rel || g.rel,
+    value: base * scale
+  }));
+
+  children.push({
+    name: g.rel,
+    avg: g.avg,
+    targetValue: gw,
+    children: kids
+  });
+}
 
   let root = d3.hierarchy({ children })
     .sum(d => d.value)
     .sort(treemapSortByPerformance);
 
   d3.treemap()
+    .tile(d3.treemapSquarify.ratio(1.15))
     .size([W, H])
     .paddingOuter(8)
     .paddingInner(3)
     .paddingTop(HEADER_H)(root);
 
-  const filteredChildren = (root.children || []).map(parent => {
-    const keptLeaves = (parent.children || []).filter(leaf => {
-      const w = Math.max(0, leaf.x1 - leaf.x0);
-      const h = Math.max(0, leaf.y1 - leaf.y0);
-      const area = w * h;
+const filteredChildren = (root.children || []).map(parent => {
+  const keptLeaves = (parent.children || []).filter(leaf => {
+    const w = Math.max(0, leaf.x1 - leaf.x0);
+    const h = Math.max(0, leaf.y1 - leaf.y0);
+    const area = w * h;
 
-      if (svgId === 'upTreemap') return true;
-      return w >= MIN_RENDER_W && h >= MIN_RENDER_H && area >= MIN_RENDER_AREA;
-    }).map(leaf => leaf.data);
+    if (svgId === 'upTreemap') return true;
 
-    return {
-      name: parent.data.name,
-      avg: parent.data.avg,
-      children: keptLeaves
-    };
-  }).filter(g => g.children && g.children.length > 0);
+    return w >= MIN_RENDER_W && h >= MIN_RENDER_H && area >= MIN_RENDER_AREA;
+  });
+
+  if (!keptLeaves.length) return null;
+
+  // 重要修正：
+  // 個股被濾掉後，重新把保留下來的個股 value 放大回原本群組權重
+  // 避免整個概念股群組因為濾掉小格子而被第二次 layout 壓扁
+  const targetValue = Number.isFinite(parent.data.targetValue)
+    ? parent.data.targetValue
+    : d3.sum(keptLeaves, leaf => leaf.data.value);
+
+  const keptSum = d3.sum(keptLeaves, leaf => leaf.data.value) || EPS;
+  const rescale = targetValue / keptSum;
+
+  const childrenRescaled = keptLeaves.map(leaf => ({
+    ...leaf.data,
+    value: leaf.data.value * rescale
+  }));
+
+  return {
+    name: parent.data.name,
+    avg: parent.data.avg,
+    targetValue,
+    children: childrenRescaled
+  };
+}).filter(Boolean);
+
 
   if (filteredChildren.length === 0) {
     if (hint) hint.textContent = '此區個股方塊過小，已自動省略';
@@ -1130,6 +1185,7 @@ const kids = baseValuesForRender.map(({s, base}) => ({
     .sort(treemapSortByPerformance);
 
   d3.treemap()
+    .tile(d3.treemapSquarify.ratio(1.15))
     .size([W, H])
     .paddingOuter(8)
     .paddingInner(3)
