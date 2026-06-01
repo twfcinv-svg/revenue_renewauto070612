@@ -382,6 +382,39 @@ function selectTreemapGroups(svgId, summaries){
     .slice(0, GROUP_KEEP_MAX);
 }
 
+
+function treemapSortByPerformance(a, b){
+  const aHasChildren = !!a.children;
+  const bHasChildren = !!b.children;
+
+  // 群組層：依群組平均值由高到低排序
+  if (aHasChildren || bHasChildren) {
+    const av = Number.isFinite(a.data?.avg) ? a.data.avg : -Infinity;
+    const bv = Number.isFinite(b.data?.avg) ? b.data.avg : -Infinity;
+
+    if (bv !== av) return bv - av;
+
+    return String(a.data?.name || '').localeCompare(
+      String(b.data?.name || ''),
+      'zh-Hant',
+      { numeric: true }
+    );
+  }
+
+  // 個股層：依目前查詢月份的 YoY / MoM 由高到低排序
+  const av = Number.isFinite(a.data?.raw) ? a.data.raw : -Infinity;
+  const bv = Number.isFinite(b.data?.raw) ? b.data.raw : -Infinity;
+
+  if (bv !== av) return bv - av;
+
+  return String(a.data?.code || '').localeCompare(
+    String(b.data?.code || ''),
+    'zh-Hant',
+    { numeric: true }
+  );
+}
+
+
 function handleRun(){
   const raw = document.querySelector('#stockInput').value;
   const month = (document.querySelector('#monthSelect')?.value) || '';
@@ -1040,7 +1073,7 @@ const kids = baseValuesForRender.map(({s, base}) => ({
 
   let root = d3.hierarchy({ children })
     .sum(d => d.value)
-    .sort((a, b) => (b.value || 0) - (a.value || 0));
+    .sort(treemapSortByPerformance);
 
   d3.treemap()
     .size([W, H])
@@ -1072,7 +1105,7 @@ const kids = baseValuesForRender.map(({s, base}) => ({
 
   root = d3.hierarchy({ children: filteredChildren })
     .sum(d => d.value)
-    .sort((a, b) => (b.value || 0) - (a.value || 0));
+    .sort(treemapSortByPerformance);
 
   d3.treemap()
     .size([W, H])
