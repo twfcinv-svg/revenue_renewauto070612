@@ -61,3 +61,10 @@ button.primary{background:var(--primary); border:none; color:white; font-weight:
   color:#cbd5e1;
   font-weight:500;
 }
+
+.concept-list{
+  color:#ffffff;
+  font-weight:900;
+  letter-spacing:0.2px;
+}
+
