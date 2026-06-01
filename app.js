@@ -1,4 +1,4 @@
-he/* app.js — v3.16 (Upstream Industry Avg Ranking)
+/* app.js — v3.16 (Upstream Industry Avg Ranking)
  * 修正內容：
  *  A) 右側「下游產業」正確讀取 DownLinks sheet
  *  B) renderTreemap 支援 Links / DownLinks 兩種資料格式
