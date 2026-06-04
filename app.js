@@ -40,6 +40,12 @@ const MIN_RENDER_W = 75;           // 個股最小寬度（小於則不顯示）
 const MIN_RENDER_H = 20;           // 個股最小高度（小於則不顯示）
 const MIN_RENDER_AREA = 400;       // 個股最小面積（小於則不顯示）
 const NEWHIGH_COLLAPSE_AFTER = 0; // 營收創新高表格，預設先顯示前 15 檔
+// ===== 右側概念股熱力圖保底顯示設定 =====
+// 避免 100% 畫面寬度下，所有個股方塊都被判定太小而整張圖消失
+const DOWN_MIN_RENDER_W_FLOOR = 38;
+const DOWN_MIN_RENDER_H_FLOOR = 14;
+const DOWN_MIN_RENDER_AREA_FLOOR = 160;
+const DOWN_FALLBACK_KEEP_PER_GROUP = 2;
 
 
 let revenueRows = [], linksRows = [], downRows = [], downRowsRaw = [], months = [];
@@ -1209,20 +1215,23 @@ for (const g of groupSummaries) {
   const renderBaseSum = d3.sum(baseValuesForRender, d => d.base) || EPS;
   const scale = gw / renderBaseSum;
 
-  const kids = baseValuesForRender.map(({s, base}) => ({
-    name: s.name || '',
-    code: s.code,
-    raw: s.raw,
-    rel: s.rel || g.rel,
-    value: base * scale
-  }));
+const kids = baseValuesForRender.map(({s, base}) => ({
+  name: s.name || '',
+  code: s.code,
+  raw: s.raw,
+  rel: s.rel || g.rel,
+  value: base * scale
+}));
 
-  children.push({
-    name: g.rel,
-    avg: g.avg,
-    targetValue: gw,
-    children: kids
-  });
+// 避免空群組進入 D3 layout，造成後續判斷異常
+if (!kids.length) continue;
+
+children.push({
+  name: g.rel,
+  avg: g.avg,
+  targetValue: gw,
+  children: kids
+});
 }
 
   let root = d3.hierarchy({ children })
@@ -1237,21 +1246,59 @@ for (const g of groupSummaries) {
     .paddingTop(HEADER_H)(root);
 
 const filteredChildren = (root.children || []).map(parent => {
-  const keptLeaves = (parent.children || []).filter(leaf => {
+  const leaves = parent.children || [];
+
+  let keptLeaves = leaves.filter(leaf => {
     const w = Math.max(0, leaf.x1 - leaf.x0);
     const h = Math.max(0, leaf.y1 - leaf.y0);
     const area = w * h;
 
+    // 左邊相同產業股維持全部顯示
     if (svgId === 'upTreemap') return true;
 
-    return w >= MIN_RENDER_W && h >= MIN_RENDER_H && area >= MIN_RENDER_AREA;
+    // 右邊概念股改成自適應門檻
+    // 畫面寬度較小時，自動降低過濾條件
+    const adaptiveMinW = Math.max(
+      DOWN_MIN_RENDER_W_FLOOR,
+      Math.min(MIN_RENDER_W, W * 0.08)
+    );
+
+    const adaptiveMinH = Math.max(
+      DOWN_MIN_RENDER_H_FLOOR,
+      Math.min(MIN_RENDER_H, H * 0.035)
+    );
+
+    const adaptiveMinArea = Math.max(
+      DOWN_MIN_RENDER_AREA_FLOOR,
+      Math.min(MIN_RENDER_AREA, W * H * 0.00045)
+    );
+
+    return w >= adaptiveMinW && h >= adaptiveMinH && area >= adaptiveMinArea;
   });
+
+  // ===== 關鍵保底修正 =====
+  // 如果右側概念股在 100% 畫面下全部被濾掉，
+  // 不要讓整個群組消失，至少保留表現最好的前幾檔。
+  if (!keptLeaves.length && svgId === 'downTreemap') {
+    keptLeaves = [...leaves]
+      .sort((a, b) => {
+        const av = Number.isFinite(a.data?.raw) ? a.data.raw : -Infinity;
+        const bv = Number.isFinite(b.data?.raw) ? b.data.raw : -Infinity;
+
+        if (bv !== av) return bv - av;
+
+        return String(a.data?.code || '').localeCompare(
+          String(b.data?.code || ''),
+          'zh-Hant',
+          { numeric: true }
+        );
+      })
+      .slice(0, DOWN_FALLBACK_KEEP_PER_GROUP);
+  }
 
   if (!keptLeaves.length) return null;
 
-  // 重要修正：
   // 個股被濾掉後，重新把保留下來的個股 value 放大回原本群組權重
-  // 避免整個概念股群組因為濾掉小格子而被第二次 layout 壓扁
   const targetValue = Number.isFinite(parent.data.targetValue)
     ? parent.data.targetValue
     : d3.sum(keptLeaves, leaf => leaf.data.value);
@@ -1273,10 +1320,14 @@ const filteredChildren = (root.children || []).map(parent => {
 }).filter(Boolean);
 
 
-  if (filteredChildren.length === 0) {
-    if (hint) hint.textContent = '此區個股方塊過小，已自動省略';
-    return;
+if (filteredChildren.length === 0) {
+  if (hint) {
+    hint.textContent = svgId === 'downTreemap'
+      ? '概念股資料存在，但目前畫面寬度不足，已無可顯示方塊'
+      : '此區個股方塊過小，已自動省略';
   }
+  return;
+}
 
   root = d3.hierarchy({ children: filteredChildren })
     .sum(d => d.value)
