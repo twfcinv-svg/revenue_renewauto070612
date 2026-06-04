@@ -988,8 +988,7 @@ function renderTreemap(svgId, hintId, edges, codeField, month, metric, colorMode
   const H = Math.max(320, parseInt(getComputedStyle(svgEl).height, 10) || 560);
   svg.attr('width', W).attr('height', H);
 
-  const groups = new Map();
-
+const groups = new Map();
 
 for (const e of (edges || [])) {
   const keyRaw = normCode(e[codeField] || e['down'] || e['up']);
@@ -997,22 +996,23 @@ for (const e of (edges || [])) {
 
   const r = byCode.get(keyRaw);
 
-  // 找不到 Revenue 資料者，不放進熱力圖
-  // 避免產生 raw:null 的空白小方塊
-  if (!r) {
-    continue;
-  }
+  // 找不到 Revenue 資料者，不納入平均，也不放進熱力圖
+  if (!r) continue;
 
   const v = getMetricValue(r, month, metric);
 
-  // 0、接近 0、無效值，全部省略
-  if (shouldSkipTreemapValue(v)) {
-    continue;
-  }
+  // 平均值只排除無效值，不排除 0 或太小的數值
+  // 這樣群組平均才會反映完整產業 / 概念股清單
+  if (!Number.isFinite(v)) continue;
 
   const groupName = getTreemapGroupName(svgId, e, r);
 
-  if (!groups.has(groupName)) groups.set(groupName, []);
+  if (!groups.has(groupName)) {
+    groups.set(groupName, {
+      avgList: [],     // 完整有效清單：專門用來算平均
+      renderList: []   // 顯示清單：專門用來畫熱力圖
+    });
+  }
 
   const codeVal =
     r['個股'] ??
@@ -1027,12 +1027,20 @@ for (const e of (edges || [])) {
     r['公司名稱'] ??
     r['證券名稱'];
 
-  groups.get(groupName).push({
+  const item = {
     code: codeVal,
     name: nameVal,
     raw: v,
     rel: groupName
-  });
+  };
+
+  // 平均值：完整有效個股都納入
+  groups.get(groupName).avgList.push(item);
+
+  // 熱力圖：仍維持原本規則，0、接近 0、無效值不顯示
+  if (!shouldSkipTreemapValue(v)) {
+    groups.get(groupName).renderList.push(item);
+  }
 }
 
   if (groups.size === 0) {
@@ -1043,31 +1051,35 @@ for (const e of (edges || [])) {
   const EPS = 0.01;
   const allSummaries = [];
 
-  for (const [rel, list] of groups) {
-    const validVals = list
-      .map(d => d.raw)
-      .filter(v => Number.isFinite(v));
+for (const [rel, groupObj] of groups) {
+  const avgList = groupObj.avgList || [];
+  const renderList = groupObj.renderList || [];
 
-    const avg = validVals.length ? d3.mean(validVals) : 0;
+  // 平均值使用完整有效清單
+  // 不受熱力圖是否顯示、是否被 slice、是否太小被省略影響
+  const validVals = avgList
+    .map(d => d.raw)
+    .filter(v => Number.isFinite(v));
 
-const baseValues = list
-  .filter(s => !shouldSkipTreemapValue(s.raw))
-  .map(s => {
+  const avg = validVals.length ? d3.mean(validVals) : 0;
+
+  // 熱力圖只使用實際可顯示清單
+  const baseValues = renderList.map(s => {
     const base = getTreemapLeafBase(s.raw, svgId);
     return { s, base };
   });
 
-const baseSum = d3.sum(baseValues, d => d.base) || EPS;
+  const baseSum = d3.sum(baseValues, d => d.base) || EPS;
 
-
-    allSummaries.push({
-      rel,
-      list,
-      avg,
-      baseValues,
-      baseSum
-    });
-  }
+  allSummaries.push({
+    rel,
+    list: renderList,      // 畫圖用
+    avgList,               // 平均用完整清單
+    avg,
+    baseValues,
+    baseSum
+  });
+}
 
   const groupSummaries = selectTreemapGroups(svgId, allSummaries);
 
