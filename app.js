@@ -54,6 +54,13 @@ let byCode = new Map();
 let byName = new Map();
 let linksByUp = new Map();
 let linksByDown = new Map();
+let currentDownstreamEdges = [];
+let currentMonth = '';
+let currentMetric = '';
+let currentColorMode = '';
+let currentSelectedConcept = '';
+
+
 
 let upstreamHJ = [];   // 左邊相同產業分類專用（DownLinks G/H/I）
 let downstreamHJ = []; // 右邊維持原本
@@ -567,7 +574,15 @@ for (const groupName of downstreamGroupNames) {
   console.log('上游筆數 =', upstreamEdges.length, upstreamEdges);
   console.log('下游筆數 =', downstreamEdges.length, downstreamEdges);
   
-  renderConceptNote(rowSelf, downstreamEdges);
+currentDownstreamEdges = downstreamEdges;
+currentMonth = month;
+currentMetric = metric;
+currentColorMode = colorMode;
+currentSelectedConcept = '';
+
+renderConceptNote(rowSelf, downstreamEdges);
+renderConceptStockList('', downstreamEdges, month, metric);
+
 
 requestAnimationFrame(() => {
     try {
@@ -649,16 +664,207 @@ function renderConceptNote(selfRow, downstreamEdges){
     return;
   }
 
+  const conceptButtonsHtml = concepts.map(c => `
+    <button
+      type="button"
+      class="concept-chip-btn"
+      data-concept="${safe(c)}"
+      title="查看 ${safe(c)} 完整概念股名單"
+    >
+      ${safe(c)}
+    </button>
+  `).join('、');
+
   host.innerHTML = `
     <div class="concept-note-inner">
       <span class="concept-note-title">概念股補充</span>
       <span class="concept-note-text">
         因概念股清單較多，熱力圖僅呈現部分代表分類與個股。
-        此個股為 <strong class="concept-list">${concepts.map(c => safe(c)).join('、')}</strong> 概念股。
+        此個股為 <span class="concept-list">${conceptButtonsHtml}</span> 概念股。
       </span>
     </div>
   `;
+
+  host.querySelectorAll('.concept-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const concept = normText(btn.dataset.concept || '');
+      currentSelectedConcept = concept;
+
+      host.querySelectorAll('.concept-chip-btn').forEach(b => {
+        b.classList.toggle('active', normText(b.dataset.concept || '') === concept);
+      });
+
+      renderConceptStockList(
+        concept,
+        currentDownstreamEdges,
+        currentMonth,
+        currentMetric
+      );
+    });
+  });
 }
+
+
+function getRevenueRowCode(row){
+  if (!row) return '';
+
+  return normCode(
+    row['個股'] ||
+    row['代號'] ||
+    row['股票代碼'] ||
+    row['股票代號'] ||
+    row['公司代號'] ||
+    row['證券代號'] ||
+    ''
+  );
+}
+
+function getRevenueRowName(row){
+  if (!row) return '';
+
+  return normText(
+    row['名稱'] ||
+    row['公司名稱'] ||
+    row['證券名稱'] ||
+    ''
+  );
+}
+
+function buildConceptStockRecords(conceptName, downstreamEdges, month, metric){
+  const concept = normText(conceptName);
+  if (!concept) return [];
+
+  const seen = new Set();
+  const records = [];
+
+  for (const e of downstreamEdges || []) {
+    const rel = normText(e['關係類型'] || e['type'] || '');
+    if (rel !== concept) continue;
+
+    const code = normCode(e['下游代號'] || e['down'] || '');
+    if (!code) continue;
+    if (isUSCode(code)) continue;
+    if (seen.has(code)) continue;
+
+    seen.add(code);
+
+    const row = byCode.get(code);
+    const name = row ? getRevenueRowName(row) : '';
+    const industry = row ? normText(row['產業別'] || '') : '';
+    const v = row ? getMetricValue(row, month, metric) : null;
+
+    records.push({
+      code,
+      name,
+      industry,
+      value: v
+    });
+  }
+
+  records.sort((a, b) => {
+    const av = Number.isFinite(a.value) ? a.value : -Infinity;
+    const bv = Number.isFinite(b.value) ? b.value : -Infinity;
+
+    if (bv !== av) return bv - av;
+
+    return String(a.code).localeCompare(
+      String(b.code),
+      'zh-Hant',
+      { numeric: true }
+    );
+  });
+
+  return records;
+}
+
+function renderConceptStockList(conceptName, downstreamEdges, month, metric){
+  const host = document.getElementById('conceptStockListWrap');
+  const titleEl = document.getElementById('conceptStockListTitle');
+  const metaEl = document.getElementById('conceptStockListMeta');
+
+  if (!host) {
+    console.warn('[renderConceptStockList] 找不到 #conceptStockListWrap');
+    return;
+  }
+
+  if (!conceptName) {
+    if (titleEl) titleEl.textContent = '概念股完整名單';
+    if (metaEl) metaEl.textContent = '請點選上方「概念股補充」中的概念股名稱';
+    host.innerHTML = `
+      <div class="concept-stock-empty">
+        點選上方概念股名稱後，這裡會顯示該概念股的完整個股名單。
+      </div>
+    `;
+    return;
+  }
+
+  const records = buildConceptStockRecords(conceptName, downstreamEdges, month, metric);
+
+  if (titleEl) {
+    titleEl.textContent = `${conceptName} 概念股完整名單`;
+  }
+
+  if (metaEl) {
+    metaEl.textContent = records.length
+      ? `共 ${records.length} 檔｜點選代號或名稱可開啟富邦投信 K 線圖`
+      : '查無符合資料';
+  }
+
+  if (!records.length) {
+    host.innerHTML = `
+      <div class="concept-stock-empty">
+        目前查無「${safe(conceptName)}」概念股完整名單。
+      </div>
+    `;
+    return;
+  }
+
+  const rowsHtml = records.map(r => {
+    const url = getStockPageUrl(r.code);
+
+    return `
+      <tr>
+        <td class="code">
+          "
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ${safe(r.code)}
+          </a>
+        </td>
+        <td class="name">
+          "
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ${safe(r.name || '-')}
+          </a>
+        </td>
+        <td class="industry">${safe(r.industry || '-')}</td>
+        <td class="num">${displayPct(r.value)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  host.innerHTML = `
+    <div class="concept-stock-table-wrap">
+      <table class="concept-stock-table">
+        <thead>
+          <tr>
+            <th class="th-code">代號</th>
+            <th class="th-name">名稱</th>
+            <th class="th-industry">產業</th>
+            <th class="th-num">${safe(metric || '')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 
 
 // ========= 個股標籤適配 =========
