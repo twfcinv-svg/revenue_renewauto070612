@@ -623,89 +623,14 @@ function renderResultChip(selfRow, month, metric, colorMode){
     </div>`;
 }
 
-function ensureConceptNoteStyles(){
-  const oldStyle = document.getElementById('conceptNoteInlineStyle');
-  if (oldStyle) oldStyle.remove();
 
-  const style = document.createElement('style');
-  style.id = 'conceptNoteInlineStyle';
-  style.textContent = `
-    #conceptNote,
-    #conceptNote * {
-      box-sizing: border-box !important;
-    }
-
-    #conceptNote .concept-note-inner {
-      display: flex !important;
-      align-items: flex-start !important;
-      gap: 10px !important;
-      line-height: 1.35 !important;
-      padding: 14px 16px !important;
-    }
-
-    #conceptNote .concept-note-title {
-      flex: 0 0 auto !important;
-      line-height: 1.35 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      white-space: nowrap !important;
-      font-weight: 700 !important;
-    }
-
-    #conceptNote .concept-note-text {
-      flex: 1 1 auto !important;
-      display: inline !important;
-      line-height: 1.35 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      white-space: normal !important;
-    }
-
-    #conceptNote .concept-list {
-      display: inline !important;
-      line-height: 1.35 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      white-space: normal !important;
-    }
-
-    #conceptNote .concept-chip-btn {
-      appearance: none !important;
-      -webkit-appearance: none !important;
-      display: inline !important;
-      height: auto !important;
-      min-height: 0 !important;
-      line-height: 1.35 !important;
-      padding: 0 !important;
-      margin: 0 2px !important;
-      border: 0 !important;
-      background: transparent !important;
-      color: #f8fafc !important;
-      font: inherit !important;
-      font-weight: 700 !important;
-      vertical-align: baseline !important;
-      cursor: pointer !important;
-    }
-
-    #conceptNote .concept-chip-btn:hover,
-    #conceptNote .concept-chip-btn:focus,
-    #conceptNote .concept-chip-btn:active {
-      background: transparent !important;
-      outline: none !important;
-      box-shadow: none !important;
-      text-decoration: underline !important;
-    }
-  `;
-
-  document.head.appendChild(style);
-}
 
 
 
 
 
 function renderConceptNote(selfRow, downstreamEdges){
-  ensureConceptNoteStyles();
+  //ensureConceptNoteStyles();
   const host = document.querySelector('#conceptNote');
 
   if (!host) {
@@ -747,7 +672,7 @@ function renderConceptNote(selfRow, downstreamEdges){
   }
 
 const conceptButtonsHtml = concepts.map(c =>
-  `<button type="button" class="concept-chip-btn" data-concept="${safe(c)}" title="查看 ${safe(c)} 完整概念股名單">${safe(c)}</button>`
+  `<span role="button" tabindex="0" class="concept-chip-btn" data-concept="${safe(c)}" title="查看 ${safe(c)} 完整概念股名單">${safe(c)}</span>`
 ).join('、');
 
 host.innerHTML = `
