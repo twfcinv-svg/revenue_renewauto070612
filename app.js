@@ -751,13 +751,19 @@ function buildConceptStockRecords(conceptName, downstreamEdges, month, metric){
     const row = byCode.get(code);
     const name = row ? getRevenueRowName(row) : '';
     const industry = row ? normText(row['產業別'] || '') : '';
-    const v = row ? getMetricValue(row, month, metric) : null;
+
+    const mom = row ? getMetricValue(row, month, 'MoM') : null;
+    const yoy = row ? getMetricValue(row, month, 'YoY') : null;
+
+    const sortValue = metric === 'YoY' ? yoy : mom;
 
     records.push({
       code,
       name,
       industry,
-      value: v
+      mom,
+      yoy,
+      value: sortValue
     });
   }
 
@@ -825,7 +831,10 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
     return `
       <tr>
         <td class="code">
-          "
+          <a
+            class="stock-link"
+            data-code="${safe(r.code)}"
+            href="${safe(url)}"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -833,7 +842,10 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
           </a>
         </td>
         <td class="name">
-          "
+          <a
+            class="stock-link"
+            data-code="${safe(r.code)}"
+            href="${safe(url)}"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -841,7 +853,8 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
           </a>
         </td>
         <td class="industry">${safe(r.industry || '-')}</td>
-        <td class="num">${displayPct(r.value)}</td>
+        <td class="num">${displayPct(r.mom)}</td>
+        <td class="num">${displayPct(r.yoy)}</td>
       </tr>
     `;
   }).join('');
@@ -854,7 +867,8 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
             <th class="th-code">代號</th>
             <th class="th-name">名稱</th>
             <th class="th-industry">產業</th>
-            <th class="th-num">${safe(metric || '')}</th>
+            <th class="th-num">MoM</th>
+            <th class="th-num">YoY</th>
           </tr>
         </thead>
         <tbody>
