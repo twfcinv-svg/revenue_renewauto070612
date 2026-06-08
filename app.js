@@ -783,6 +783,111 @@ function buildConceptStockRecords(conceptName, downstreamEdges, month, metric){
   return records;
 }
 
+
+function ensureConceptStockTableStyles(){
+  if (document.getElementById('conceptStockTableInlineStyle')) return;
+
+  const style = document.createElement('style');
+  style.id = 'conceptStockTableInlineStyle';
+  style.textContent = `
+    #conceptStockListWrap .concept-stock-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table col.col-code {
+      width: 14% !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table col.col-name {
+      width: 22% !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table col.col-industry {
+      width: 24% !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table col.col-mom {
+      width: 20% !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table col.col-yoy {
+      width: 20% !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table thead th,
+    #conceptStockListWrap .concept-stock-table tbody td {
+      padding: 10px 14px !important;
+      vertical-align: middle !important;
+      box-sizing: border-box !important;
+      color: #f8fafc !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table thead th {
+      color: #dbeafe !important;
+      font-weight: 600 !important;
+      text-align: left !important;
+      white-space: nowrap !important;
+      border-bottom: 1px solid rgba(255,255,255,0.10) !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table tbody td {
+      border-bottom: 1px dashed rgba(255,255,255,0.05) !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table thead th + th,
+    #conceptStockListWrap .concept-stock-table tbody td + td {
+      border-left: 1px solid rgba(255,255,255,0.07) !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table tbody td.code,
+    #conceptStockListWrap .concept-stock-table tbody td.name,
+    #conceptStockListWrap .concept-stock-table tbody td.industry {
+      text-align: left !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+
+    #conceptStockListWrap .concept-stock-table thead th.th-num,
+    #conceptStockListWrap .concept-stock-table tbody td.num {
+      text-align: right !important;
+      font-variant-numeric: tabular-nums !important;
+      white-space: nowrap !important;
+    }
+
+    #conceptStockListWrap .stock-link,
+    #conceptStockListWrap .stock-link:link,
+    #conceptStockListWrap .stock-link:visited,
+    #conceptStockListWrap .stock-link:hover,
+    #conceptStockListWrap .stock-link:active,
+    #conceptStockListWrap .stock-link:focus {
+      color: #f8fafc !important;
+      text-decoration: none !important;
+      background: transparent !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    #conceptStockListWrap .stock-link {
+      display: inline-block !important;
+      cursor: pointer !important;
+      line-height: 1.2 !important;
+      font-weight: 600 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+
+
 function renderConceptStockList(conceptName, downstreamEdges, month, metric){
   const host = document.getElementById('conceptStockListWrap');
   const titleEl = document.getElementById('conceptStockListTitle');
@@ -792,6 +897,7 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
     console.warn('[renderConceptStockList] 找不到 #conceptStockListWrap');
     return;
   }
+  ensureConceptStockTableStyles();
 
   if (!conceptName) {
     if (titleEl) titleEl.textContent = '概念股完整名單';
@@ -859,10 +965,17 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
     `;
   }).join('');
 
-  host.innerHTML = `
-    <div class="concept-stock-table-wrap">
-      <table class="concept-stock-table">
-        <thead>
+host.innerHTML = `
+  <div class="concept-stock-table-wrap">
+    <table class="concept-stock-table">
+      <colgroup>
+        <col class="col-code">
+        <col class="col-name">
+        <col class="col-industry">
+        <col class="col-mom">
+        <col class="col-yoy">
+      </colgroup>
+      <thead>
           <tr>
             <th class="th-code">代號</th>
             <th class="th-name">名稱</th>
