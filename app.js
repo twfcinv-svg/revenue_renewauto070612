@@ -785,15 +785,23 @@ function buildConceptStockRecords(conceptName, downstreamEdges, month, metric){
 
 
 function ensureConceptStockTableStyles(){
-  if (document.getElementById('conceptStockTableInlineStyle')) return;
+  // 每次重新注入，避免舊版 inline style 殘留
+  const oldStyle = document.getElementById('conceptStockTableInlineStyle');
+  if (oldStyle) oldStyle.remove();
 
   const style = document.createElement('style');
   style.id = 'conceptStockTableInlineStyle';
   style.textContent = `
+    #conceptStockListWrap {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+
     #conceptStockListWrap .concept-stock-table-wrap {
       width: 100% !important;
       max-width: 100% !important;
       overflow-x: hidden !important;
+      box-sizing: border-box !important;
     }
 
     #conceptStockListWrap .concept-stock-table {
@@ -802,34 +810,39 @@ function ensureConceptStockTableStyles(){
       min-width: 0 !important;
       border-collapse: collapse !important;
       table-layout: fixed !important;
+      box-sizing: border-box !important;
     }
 
+    /* 欄寬重新分配：讓整張表剛好塞進右側卡片 */
     #conceptStockListWrap .concept-stock-table col.col-code {
-      width: 13% !important;
+      width: 12% !important;
     }
 
     #conceptStockListWrap .concept-stock-table col.col-name {
-      width: 22% !important;
+      width: 23% !important;
     }
 
     #conceptStockListWrap .concept-stock-table col.col-industry {
-      width: 25% !important;
+      width: 27% !important;
     }
 
     #conceptStockListWrap .concept-stock-table col.col-mom {
-      width: 20% !important;
+      width: 19% !important;
     }
 
     #conceptStockListWrap .concept-stock-table col.col-yoy {
-      width: 20% !important;
+      width: 19% !important;
     }
 
     #conceptStockListWrap .concept-stock-table thead th,
     #conceptStockListWrap .concept-stock-table tbody td {
-      padding: 10px 10px !important;
+      padding: 9px 6px !important;
       vertical-align: middle !important;
       box-sizing: border-box !important;
       color: #f8fafc !important;
+      font-size: 15px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
     }
 
     #conceptStockListWrap .concept-stock-table thead th {
@@ -854,8 +867,6 @@ function ensureConceptStockTableStyles(){
     #conceptStockListWrap .concept-stock-table tbody td.industry {
       text-align: left !important;
       white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
     }
 
     #conceptStockListWrap .concept-stock-table thead th.th-num,
@@ -863,6 +874,12 @@ function ensureConceptStockTableStyles(){
       text-align: right !important;
       font-variant-numeric: tabular-nums !important;
       white-space: nowrap !important;
+    }
+
+    /* 讓最後一欄 YoY 不要貼到最右邊被切到 */
+    #conceptStockListWrap .concept-stock-table thead th:last-child,
+    #conceptStockListWrap .concept-stock-table tbody td:last-child {
+      padding-right: 10px !important;
     }
 
     #conceptStockListWrap .stock-link,
