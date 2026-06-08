@@ -244,3 +244,75 @@ button.primary{background:var(--primary); border:none; color:white; font-weight:
 }
 
 
+
+/* ===== 修正概念股補充區塊行距過大 ===== */
+#conceptNote.concept-note {
+  margin-top: 10px !important;
+  padding: 0 2px !important;
+}
+
+#conceptNote .concept-note-inner {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  line-height: 1.35 !important;
+}
+
+#conceptNote .concept-note-title {
+  flex: 0 0 auto !important;
+  line-height: 1.35 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+}
+
+#conceptNote .concept-note-text {
+  flex: 1 1 auto !important;
+  line-height: 1.35 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: normal !important;
+}
+
+#conceptNote .concept-list {
+  display: inline !important;
+  line-height: 1.35 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 重點：壓掉全域 button height:36px */
+#conceptNote .concept-chip-btn {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  display: inline !important;
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.35 !important;
+  padding: 0 !important;
+  margin: 0 2px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  font: inherit !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.2px !important;
+  vertical-align: baseline !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+
+#conceptNote .concept-chip-btn:hover {
+  color: #93c5fd !important;
+  text-decoration: underline !important;
+}
+
+#conceptNote .concept-chip-btn.active {
+  color: #38bdf8 !important;
+  text-decoration: underline !important;
+}
+
+
+
