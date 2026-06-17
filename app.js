@@ -1026,11 +1026,13 @@ function renderConceptStockList(conceptName, downstreamEdges, month, metric){
     titleEl.textContent = `${conceptName} 概念股完整名單`;
   }
 
-  if (metaEl) {
-    metaEl.textContent = records.length
-      ? `共 ${records.length} 檔｜點選代號或名稱可開啟富邦投信 K 線圖`
-      : '查無符合資料';
-  }
+if (metaEl) {
+  const monthLabel = formatMonthLabelForConceptTable(month);
+
+  metaEl.textContent = records.length
+    ? `資料月份：${monthLabel}｜共 ${records.length} 檔｜點選代號或名稱可開啟富邦投信 K 線圖`
+    : '查無符合資料';
+}
 
   if (!records.length) {
     host.innerHTML = `
@@ -1937,6 +1939,20 @@ function getLatestMonthLabel(){
 
   return `${year}年${month}月`;
 }
+
+
+function formatMonthLabelForConceptTable(month){
+  if (!month || String(month).length !== 6) return '';
+
+  const year = String(month).slice(0, 4);
+  const mm = String(month).slice(4, 6);
+
+  return `${year}年${mm}月`;
+}
+
+
+
+
 
 function getStockPageUrl(code){
   const c = encodeURIComponent(normCode(code));
