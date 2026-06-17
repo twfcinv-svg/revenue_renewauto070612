@@ -21,6 +21,9 @@ const NEWHIGH_SHEET   = '創新高';
 const CODE_FIELDS = ['個股','代號','股票代碼','股票代號','公司代號','證券代號'];
 const NAME_FIELDS = ['名稱','公司名稱','證券名稱'];
 const COL_MAP = {};
+const AMOUNT_COL_MAP = {}; // 各月份營收金額欄位，例如 202505 -> 202505月合併營收(千)
+
+
 
 // ===== 可調參數 =====
 const HEADER_H = 22;
@@ -178,42 +181,53 @@ async function loadWorkbook(){
 
   console.log('[Revenue headerRow]', headerRow);
 
-  for (const rawHeader of headerRow) {
-    if (!rawHeader) continue;
+for (const rawHeader of headerRow) {
+  if (!rawHeader) continue;
 
-    const h = normText(String(rawHeader));
-    console.log('[檢查欄名]', h);
+  const h = normText(String(rawHeader));
+  console.log('[檢查欄名]', h);
 
-    // 先抓年月：支援 2025/3、2025年3月、2025-03、202503
-    let ymMatch =
-      h.match(/(20\d{2})[\/年\-]?\s*(\d{1,2})\s*月?/) ||
-      h.match(/(20\d{2})(\d{2})/);
+  // 先抓年月：支援 2025/3、2025年3月、2025-03、202503
+  let ymMatch =
+    h.match(/(20\d{2})[\/年\-]?\s*(\d{1,2})\s*月?/) ||
+    h.match(/(20\d{2})(\d{2})/);
 
-    if (!ymMatch) continue;
+  if (!ymMatch) continue;
 
-    const ym = ymMatch[1] + String(ymMatch[2]).padStart(2, '0');
+  const ym = ymMatch[1] + String(ymMatch[2]).padStart(2, '0');
 
-    // 判斷欄位是 YoY 還是 MoM（放寬條件）
-    const isYoY =
-      /年增|年成長|YoY/i.test(h);
+  // 判斷欄位是 YoY 還是 MoM
+  const isYoY = /年增|年成長|YoY/i.test(h);
+  const isMoM = /月增|月變動|MoM/i.test(h);
 
-    const isMoM =
-      /月增|月變動|MoM/i.test(h);
- 
-    if (isYoY) {
-      (COL_MAP[ym] ??= {}).YoY = rawHeader;
-      found.add(ym);
-      console.log(`[COL_MAP][${ym}].YoY =`, rawHeader);
-      continue;
-    }
-
-    if (isMoM) {
-      (COL_MAP[ym] ??= {}).MoM = rawHeader;
-      found.add(ym);
-      console.log(`[COL_MAP][${ym}].MoM =`, rawHeader);
-      continue;
-    }
+  if (isYoY) {
+    (COL_MAP[ym] ??= {}).YoY = rawHeader;
+    found.add(ym);
+    console.log(`[COL_MAP][${ym}].YoY =`, rawHeader);
+    continue;
   }
+
+  if (isMoM) {
+    (COL_MAP[ym] ??= {}).MoM = rawHeader;
+    found.add(ym);
+    console.log(`[COL_MAP][${ym}].MoM =`, rawHeader);
+    continue;
+  }
+
+  // 新增：抓每個月份的「營收金額」欄位
+  // 例如 202505月合併營收(千)、2025年5月營收、2025/05營收
+  // 排除 YoY / MoM，避免抓到成長率欄位
+  const isRevenueAmount =
+    /營收/i.test(h) &&
+    !/年增|年成長|YoY|月增|月變動|MoM/i.test(h);
+
+  if (isRevenueAmount) {
+    AMOUNT_COL_MAP[ym] = rawHeader;
+    found.add(ym);
+    console.log(`[AMOUNT_COL_MAP][${ym}] =`, rawHeader);
+    continue;
+  }
+}
 
   months = Array.from(found).sort((a, b) => b.localeCompare(a));
 
@@ -353,6 +367,80 @@ function getMetricValue(row, month, metric){
 
   return Number.isFinite(v) ? v : null;
 }
+
+function shiftMonth(ym, diff){
+  if (!ym || ym.length !== 6) return '';
+
+  const y = Number(ym.slice(0, 4));
+  const m = Number(ym.slice(4, 6));
+
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return '';
+
+  const total = y * 12 + (m - 1) + diff;
+  const ny = Math.floor(total / 12);
+  const nm = total % 12 + 1;
+
+  return String(ny) + String(nm).padStart(2, '0');
+}
+
+function getRevenueAmountValue(row, month){
+  if (!row || !month) return null;
+
+  const codeOfRow = normCode(
+    row['個股'] || row['代號'] || row['股票代碼'] ||
+    row['股票代號'] || row['公司代號'] || row['證券代號'] || ''
+  );
+
+  // 美股不納入台股營收合計
+  if (isUSCode(codeOfRow)) return null;
+
+  const col = AMOUNT_COL_MAP[month];
+  if (!col) return null;
+
+  let v = row[col];
+
+  if (v == null || v === '') return null;
+
+  if (typeof v === 'string') {
+    v = v.replace(/[%％,\s]/g, '').trim();
+  }
+
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getGroupAggregateRevenuePerformance(rows, month, metric){
+  if (!Array.isArray(rows) || !rows.length || !month || !metric) return null;
+
+  const baseMonth = metric === 'YoY'
+    ? shiftMonth(month, -12)
+    : shiftMonth(month, -1);
+
+  if (!baseMonth) return null;
+
+  let currentSum = 0;
+  let baseSum = 0;
+  let validCount = 0;
+
+  for (const row of rows) {
+    const currentRevenue = getRevenueAmountValue(row, month);
+    const baseRevenue = getRevenueAmountValue(row, baseMonth);
+
+    if (!Number.isFinite(currentRevenue)) continue;
+    if (!Number.isFinite(baseRevenue)) continue;
+    if (baseRevenue === 0) continue;
+
+    currentSum += currentRevenue;
+    baseSum += baseRevenue;
+    validCount += 1;
+  }
+
+  if (!validCount || baseSum === 0) return null;
+
+  return (currentSum / baseSum - 1) * 100;
+}
+
+
 
 function shouldSkipTreemapValue(v){
   // 無效值、空值、找不到資料，直接不放進熱力圖
@@ -1271,7 +1359,7 @@ const GroupTitleFit = {
     tSep.textContent = '  ';
 
     const tAvg = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-    tAvg.textContent = `平均：${displayPct(d.data.avg)}`;
+    tAvg.textContent = `整體：${displayPct(d.data.avg)}`;
 
     text.appendChild(tName);
     text.appendChild(tSep);
@@ -1286,7 +1374,7 @@ const GroupTitleFit = {
     tName.textContent = d.data.name || '';
 
     const tAvg = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-    tAvg.textContent = `平均：${displayPct(d.data.avg)}`;
+    tAvg.textContent = `整體：${displayPct(d.data.avg)}`;
 
     text.appendChild(tName);
     text.appendChild(tAvg);
@@ -1437,12 +1525,13 @@ for (const e of (edges || [])) {
     r['公司名稱'] ??
     r['證券名稱'];
 
-  const item = {
-    code: codeVal,
-    name: nameVal,
-    raw: v,
-    rel: groupName
-  };
+const item = {
+  code: codeVal,
+  name: nameVal,
+  raw: v,
+  rel: groupName,
+  row: r
+};
 
   // 平均值：完整有效個股都納入
   groups.get(groupName).avgList.push(item);
@@ -1465,13 +1554,31 @@ for (const [rel, groupObj] of groups) {
   const avgList = groupObj.avgList || [];
   const renderList = groupObj.renderList || [];
 
-  // 平均值使用完整有效清單
-  // 不受熱力圖是否顯示、是否被 slice、是否太小被省略影響
+// 群組表現：
+// 左邊上游熱力圖改用「整體營收加總」計算
+// MoM = 本月營收加總 / 上月營收加總 - 1
+// YoY = 本月營收加總 / 去年同月營收加總 - 1
+//
+// 右邊下游概念股如果你也想套用同樣邏輯，可以拿掉 svgId === 'upTreemap' 的限制
+let avg = null;
+
+if (svgId === 'upTreemap') {
+  const groupRows = avgList
+    .map(d => d.row)
+    .filter(Boolean);
+
+  avg = getGroupAggregateRevenuePerformance(groupRows, month, metric);
+} else {
   const validVals = avgList
     .map(d => d.raw)
     .filter(v => Number.isFinite(v));
 
-  const avg = validVals.length ? d3.mean(validVals) : 0;
+  avg = validVals.length ? d3.mean(validVals) : null;
+}
+
+if (!Number.isFinite(avg)) {
+  avg = 0;
+}
 
   // 熱力圖只使用實際可顯示清單
   const baseValues = renderList.map(s => {
