@@ -365,7 +365,8 @@ function buildResearchReportMap(){
     // C欄 = 日期
     const code = normCode(row[0]);
     const name = normText(row[1]);
-    const date = normText(row[2]);
+    const rawDate = normText(row[2]);
+    const date = formatResearchReportDate(rawDate);
 
     // 略過空白列、標題列、說明列
     if (!code || !date) continue;
@@ -391,6 +392,52 @@ function buildResearchReportMap(){
 
   console.log('[研究部評等] 有報告個股數 =', researchReportByCode.size);
 }
+
+function formatResearchReportDate(dateText){
+  const s = normText(dateText);
+  if (!s) return '';
+
+  // 情況一：Excel 讀出來是 6/1/26、2026/6/1、2026/06/01
+  let m = s.match(/^(\d{1,4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,4})$/);
+  if (m) {
+    let a = Number(m[1]);
+    const b = Number(m[2]);
+    let c = Number(m[3]);
+
+    let y, mo, d;
+
+    // 例如 2026/6/1
+    if (String(m[1]).length === 4) {
+      y = a;
+      mo = b;
+      d = c;
+    }
+    // 例如 6/1/26，視為 月/日/西元後兩碼
+    else {
+      mo = a;
+      d = b;
+      y = c < 100 ? 2000 + c : c;
+    }
+
+    if (
+      Number.isFinite(y) &&
+      Number.isFinite(mo) &&
+      Number.isFinite(d)
+    ) {
+      return `${y}/${String(mo).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 情況二：Excel 讀出來是 20260601
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) {
+    return `${m[1]}/${m[2]}/${m[3]}`;
+  }
+
+  // 其他格式就先原樣顯示
+  return s;
+}
+
 
 
 function initControls(){
@@ -785,7 +832,7 @@ function ensureResultChipReportStyles(){
       display: flex !important;
       flex-direction: column !important;
       justify-content: center !important;
-      min-width: 128px !important;
+      min-width: 150px !important;
       padding: 10px 14px !important;
       border-radius: 12px !important;
       background: rgba(14, 165, 233, 0.22) !important;
@@ -864,7 +911,7 @@ function renderResultChip(selfRow, month, metric, colorMode){
         rel="noopener noreferrer"
         title="${safe(showCode)} ${safe(showName)} 最新研究報告：${safe(report.date)}"
       >
-        <span class="research-report-label">研究報告</span>
+        <span class="research-report-label">y最新研究報告</span>
         <span class="research-report-date">${safe(report.date)}</span>
       </a>
     `
