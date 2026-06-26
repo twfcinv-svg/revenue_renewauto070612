@@ -902,20 +902,21 @@ function renderResultChip(selfRow, month, metric, colorMode){
 
   const report = researchReportByCode.get(codeKey);
 
-  const reportHtml = report
-    ? `
-      <a
-        class="research-report-card"
-        href="https://fbstw.link/5yqge4"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="${safe(showCode)} ${safe(showName)} 最新研究報告：${safe(report.date)}"
-      >
-        <span class="research-report-label">最新研究報告</span>
-        <span class="research-report-date">${safe(report.date)}</span>
-      </a>
-    `
-    : '';
+const reportHtml = report
+  ? `
+    <a
+      class="research-report-card"
+      href="https://fbstw.link/5yqge4"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="${safe(showCode)} ${safe(showName)} 最新研究報告：${safe(report.date)}"
+      onclick="event.preventDefault(); event.stopPropagation(); window.open('https://fbstw.link/5yqge4', '_blank', 'noopener,noreferrer'); return false;"
+    >
+      <span class="research-report-label">最新研究報告</span>
+      <span class="research-report-date">${safe(report.date)}</span>
+    </a>
+  `
+  : '';
 
   host.innerHTML = `
     <div class="result-chip-row">
