@@ -81,6 +81,49 @@ function displayPct(v){ if(v == null || !isFinite(v)) return '—'; const s = v.
 function colorFor(v, mode){ if(v == null || !isFinite(v)) return '#0f172a'; const t = Math.min(1, Math.abs(v)/80); const alpha = 0.25 + 0.35*t; const good = (mode === 'greenPositive'); const pos = good ? '156,163,175' : '59,130,246'; const neg = good ? '59,130,246' : '156,163,175'; const rgb = (v >= 0) ? pos : neg; return `rgba(${rgb},${alpha})`; }
 function safe(s){ return z(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function isUSCode(code){ return /\.US$/i.test(String(code || '').trim()); }
+// ===== 關閉個股區塊跳轉富邦證券 K 線圖 =====
+// 保留「最新研究報告」跳轉富邦投顧網站
+function disableFubonStockNavigation(){
+  if (window.__disableFubonStockNavigationBound) return;
+  window.__disableFubonStockNavigationBound = true;
+
+  document.addEventListener('click', function(e){
+    const target = e.target;
+
+    if (!target || typeof target.closest !== 'function') return;
+
+    // 最新研究報告卡片要保留可點擊
+    if (target.closest('.research-report-card')) {
+      return;
+    }
+
+    // 攔截熱力圖個股方塊
+    const isTreemapNode = target.closest('#upTreemap .node, #downTreemap .node');
+
+    // 攔截查詢結果右邊個股資訊卡
+    const isResultCard = target.closest('#resultChip .result-card');
+
+    // 攔截任何指向富邦證券 MKT K 線圖的連結
+    const link = target.closest('a[href]');
+    const href = link ? String(link.getAttribute('href') || '') : '';
+    const isFubonStockLink =
+      href.includes('fbs.com.tw/MKT/Index') ||
+      href.includes('www.fbs.com.tw/MKT/Index');
+
+    if (isTreemapNode || isResultCard || isFubonStockLink) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+
+      return false;
+    }
+  }, true);
+}
+``
+
 
 function triggerUnifiedQuery(){
   const input = document.querySelector('#stockInput');
@@ -142,11 +185,15 @@ function interceptQueryControlsEnter(){
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
+    // 關閉個股方塊、個股資訊卡、富邦證券 K 線圖連結
+    // 但保留最新研究報告跳轉富邦投顧
+    disableFubonStockNavigation();
+
     await loadWorkbook();
     initControls();
     renderNewHighSummary();
 
-    // 改成：攔截所有查詢欄位的 Enter
+    // 攔截所有查詢欄位的 Enter
     interceptQueryControlsEnter();
 
   } catch (e) {
@@ -921,7 +968,7 @@ const reportHtml = report
   host.innerHTML = `
     <div class="result-chip-row">
       ${reportHtml}
-      <div class="result-card" style="background:${bg}">
+      <div class="result-card" style="background:${bg}; cursor: default;" role="presentation">
         <div class="row1">
           <strong>${safe(showCode)}｜${safe(showName)}</strong>
           <span>${month.slice(0,4)}/${month.slice(4,6)} / ${metric}</span>
@@ -2086,6 +2133,12 @@ if (filteredChildren.length === 0) {
         triggerUnifiedQuery();
       });
   }
+  if (!ENABLE_NODE_CLICK) {
+    node
+      .style('cursor', 'default')
+      .on('click', null);
+  }
+  
 
   requestAnimationFrame(() => {
     node.each(function(d){
@@ -2156,11 +2209,6 @@ function formatMonthLabelForConceptTable(month){
 
 
 
-
-function getStockPageUrl(code){
-  const c = encodeURIComponent(normCode(code));
-  return `https://www.fbs.com.tw/MKT/Index?name=%EF%BC%AA%E7%B7%9A%E5%9C%96&stock=${c}`;
-}
 
 
 
