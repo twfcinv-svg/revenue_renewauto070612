@@ -314,5 +314,34 @@ button.primary{background:var(--primary); border:none; color:white; font-weight:
   text-decoration: underline !important;
 }
 
+@media (max-width: 768px) {
+  .header-wrap {
+    flex-direction: column;
+    padding: 18px 16px 14px;
+    min-height: auto;
+  }
+
+  .header-right-info {
+    position: static;
+    transform: none;
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .header-right-info .sub-title {
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+
+  .data-source {
+    font-size: 11px;
+    white-space: normal;
+  }
+
+  .header-wrap .page-title {
+    margin: 8px 16px 4px;
+  }
+}
+
 
 
