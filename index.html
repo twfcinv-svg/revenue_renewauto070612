@@ -52,15 +52,33 @@
       margin: 16px 16px 8px;
     }
 
-    /* ✅ 右上角資料來源（不影響 layout） */
-    .data-source {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 12px;
-      color: #cbd5e1;
-    }
+/* ✅ 右上角：富邦投顧 + 資料來源 */
+.header-right-info {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;      /* 讓三行文字像你附圖一樣置中 */
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* 右上角的富邦投顧：沿用原本中間副標樣式 */
+.header-right-info .sub-title {
+  color: #38bdf8;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  opacity: 0.9;
+}
+
+/* 右上角資料來源文字 */
+.data-source {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.7;
+}
 
     .controls { margin: 8px 16px 12px; }
     .layout { margin: 0 16px 24px; }
@@ -260,10 +278,16 @@
 
 <div class="header-wrap">
   <div class="header-title-group">
-    <div class="sub-title">富邦投顧</div>
     <h1 class="page-title">營收熱力圖</h1>
   </div>
-  <div class="data-source">資料來源：CMoney、XQ</div>
+
+  <div class="header-right-info">
+    <div class="sub-title">富邦投顧</div>
+    <div class="data-source">
+      <div>資料來源：CMoney、XQ</div>
+      <div>個業服務部 數位服務 彙整</div>
+    </div>
+  </div>
 </div>
 
 
